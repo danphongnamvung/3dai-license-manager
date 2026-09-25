@@ -27,7 +27,7 @@ export default {
           }
         }
       } catch (e) {
-        // Bỏ qua lỗi đọc announcement nếu chưa tạo
+        // Bỏ qua lỗi nếu chưa tạo key thông báo chung
       }
 
       // 2. Tìm Key bản quyền của người dùng trong KV
