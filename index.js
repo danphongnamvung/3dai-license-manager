@@ -21,7 +21,7 @@ export default {
         return new Response(JSON.stringify({ success: false, message: "Thiếu dữ liệu xác thực (Key hoặc Mã máy)!" }), { status: 400, headers: corsHeaders });
       }
 
-      // Tìm Key trong cơ sở dữ liệu KV (Không gian lưu trữ LICENSES)
+      // Tìm Key trong cơ sở dữ liệu KV (Dùng đúng tên biến LICENSES đã binding)
       const licenseDataStr = await env.LICENSES.get(license_key);
       if (!licenseDataStr) {
         return new Response(JSON.stringify({ success: false, message: "Mã bản quyền không tồn tại trên hệ thống!" }), { status: 404, headers: corsHeaders });
