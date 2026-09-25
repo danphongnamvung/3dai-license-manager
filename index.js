@@ -1,27 +1,36 @@
 export default {
   async fetch(request, env) {
-    // Cấu hình CORS để cho phép SketchUp gửi request lên máy chủ
     const corsHeaders = { 
       "Access-Control-Allow-Origin": "*", 
       "Access-Control-Allow-Methods": "POST, OPTIONS", 
       "Access-Control-Allow-Headers": "Content-Type" 
     };
     
-    // Xử lý preflight request
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-    
-    // Chỉ chấp nhận phương thức POST
     if (request.method !== "POST") return new Response("Only POST requests allowed", { status: 405, headers: corsHeaders });
 
     try {
-      // Nhận dữ liệu gửi lên từ Plugin SketchUp
       const { license_key, machine_id } = await request.json();
       
       if (!license_key || !machine_id) {
-        return new Response(JSON.stringify({ success: false, message: "Thiếu dữ liệu xác thực (Key hoặc Mã máy)!" }), { status: 400, headers: corsHeaders });
+        return new Response(JSON.stringify({ success: false, message: "Thiếu dữ liệu xác thực!" }), { status: 400, headers: corsHeaders });
       }
 
-      // Tìm Key trong cơ sở dữ liệu KV (Không gian lưu trữ LICENSES)
+      // 1. Lấy thông báo khuyến mãi chung từ KV (Key: GLOBAL_ANNOUNCEMENT)
+      let globalAnnouncement = "Chào mừng bạn đến với 3DAi Studio!";
+      try {
+        const annDataStr = await env.LICENSES.get("GLOBAL_ANNOUNCEMENT");
+        if (annDataStr) {
+          const annObj = JSON.parse(annDataStr);
+          if (annObj.message) {
+            globalAnnouncement = annObj.message;
+          }
+        }
+      } catch (e) {
+        // Bỏ qua lỗi đọc announcement nếu chưa tạo
+      }
+
+      // 2. Tìm Key bản quyền của người dùng trong KV
       const licenseDataStr = await env.LICENSES.get(license_key);
       if (!licenseDataStr) {
         return new Response(JSON.stringify({ success: false, message: "Mã bản quyền không tồn tại trên hệ thống!" }), { status: 404, headers: corsHeaders });
@@ -29,24 +38,23 @@ export default {
 
       let licenseData = JSON.parse(licenseDataStr);
       
-      // 1. Kiểm tra trạng thái Key (có bị khóa hay không)
+      // Kiểm tra trạng thái Key
       if (licenseData.status !== "active") {
         return new Response(JSON.stringify({ success: false, message: "Mã bản quyền đã bị khóa hoặc ngừng hoạt động!" }), { status: 403, headers: corsHeaders });
       }
 
-      // 2. Kiểm tra thời hạn (Expiry Date)
+      // Kiểm tra thời hạn
       if (licenseData.expiry_date) {
-        const today = new Date().toISOString().split('T')[0]; // Định dạng YYYY-MM-DD
+        const today = new Date().toISOString().split('T')[0];
         if (today > licenseData.expiry_date) {
           return new Response(JSON.stringify({ success: false, message: "Mã bản quyền đã hết hạn sử dụng!" }), { status: 403, headers: corsHeaders });
         }
       }
 
-      // 3. Phân biệt loại Key: Dùng chung (shared) hay Cá nhân khóa máy (personal)
+      // Phân biệt loại Key: Dùng chung (shared) hay Cá nhân (personal)
       if (licenseData.type === "shared") {
-        // Key dùng chung cho phép mọi máy đều qua mà không cần check machine_id
+        // Không khóa máy
       } else {
-        // Key cá nhân: Khóa cứng 1 máy
         if (!licenseData.machine_id || licenseData.machine_id === "") {
           licenseData.machine_id = machine_id;
           await env.LICENSES.put(license_key, JSON.stringify(licenseData));
@@ -55,12 +63,12 @@ export default {
         }
       }
 
-      // 4. Trả về kết quả thành công kèm theo cấp độ tài khoản và thông báo động
+      // 3. Trả về kết quả kèm theo thông báo khuyến mãi chung
       return new Response(JSON.stringify({ 
         success: true, 
         message: "Xác thực bản quyền thành công!", 
         tier: licenseData.tier || "free",
-        announcement: licenseData.announcement || "Hệ thống hoạt động bình thường." 
+        announcement: globalAnnouncement 
       }), { status: 200, headers: corsHeaders });
       
     } catch (err) {
