@@ -30,21 +30,26 @@ export default {
 
       // 2. Kiểm tra thời hạn (Expiry Date)
       if (licenseData.expiry_date) {
-        const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+        const today = new Date().toISOString().split('T')[0];
         if (today > licenseData.expiry_date) {
           return new Response(JSON.stringify({ success: false, message: "Mã bản quyền đã hết hạn sử dụng!" }), { status: 403, headers: corsHeaders });
         }
       }
 
-      // 3. Đối chiếu Machine ID
-      if (!licenseData.machine_id || licenseData.machine_id === "") {
-        licenseData.machine_id = machine_id;
-        await env.LICENSES.put(license_key, JSON.stringify(licenseData));
-      } else if (licenseData.machine_id !== machine_id) {
-        return new Response(JSON.stringify({ success: false, message: "Mã bản quyền này đã được kích hoạt trên một máy tính khác!" }), { status: 403, headers: corsHeaders });
+      // 3. Phân biệt loại Key: Dùng chung (shared) hay Cá nhân khóa máy (personal)
+      if (licenseData.type === "shared") {
+        // Key dùng chung cho phép mọi máy đều qua mà không cần check machine_id
+      } else {
+        // Key cá nhân: Khóa cứng 1 máy
+        if (!licenseData.machine_id || licenseData.machine_id === "") {
+          licenseData.machine_id = machine_id;
+          await env.LICENSES.put(license_key, JSON.stringify(licenseData));
+        } else if (licenseData.machine_id !== machine_id) {
+          return new Response(JSON.stringify({ success: false, message: "Mã bản quyền này đã được kích hoạt trên một máy tính khác!" }), { status: 403, headers: corsHeaders });
+        }
       }
 
-      // Trả về thành công kèm theo cấp độ tài khoản (tier)
+      // Trả về kết quả kèm theo cấp độ tài khoản (tier)
       return new Response(JSON.stringify({ 
         success: true, 
         message: "Xác thực thành công!", 
